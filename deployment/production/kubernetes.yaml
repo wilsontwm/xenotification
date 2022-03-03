@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: production
+  name: xenotification
+  labels:
+    app: xenotification
+spec:
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+      name: xenotification
+  type: NodePort
+  selector:
+    app: xenotification
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: production
+  name: xenotification
+  labels:
+    app: xenotification
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: xenotification
+  template:
+    metadata:
+      labels:
+        app: xenotification
+    spec:
+      imagePullSecrets:
+        - name: regsecret
+      containers:
+        - name: xenotification
+          image: registry-intl-vpc.ap-southeast-3.aliyuncs.com/revenuemonster/xenotification:production-latest
+          imagePullPolicy: "Always"
+          envFrom:
+            - configMapRef:
+                name: default-config
+            - configMapRef:
+                name: xenotification-config
+            - configMapRef:
+                name: jaeger-config
+            - configMapRef:
+                name: service-list
+          env:
+            - name: REDIS_HOST
+              value: "redis:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-credentials
+                  key: password
+            - name: MONGODB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-db-credentials
+                  key: host
+            - name: MONGODB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-db-credentials
+                  key: username
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-db-credentials
+                  key: password
+            - name: MONGODB_DBNAME
+              value: "loyalty-production"

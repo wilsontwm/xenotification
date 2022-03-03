@@ -1,0 +1,53 @@
+settings:
+  files:
+    outputs:
+      status: false
+      path: ""
+      name: .r.outputs.log
+    logs:
+      status: false
+      path: ""
+      name: .r.logs.log
+    errors:
+      status: false
+      path: ""
+      name: .r.errors.log
+  legacy:
+    force: true
+    interval: 0ms
+schema:
+  - name: xenotification
+    path: .
+    env:
+      APP_NAME: "xenotification"
+      APP_VERSION: "0.0.1"
+      ENV: "development"
+      PORT: "7000"
+      SYSTEM_PATH: "http://localhost:7000"
+
+      MONGODB_HOST: "localhost:27017"
+      MONGODB_USERNAME: "xendit"
+      MONGODB_PASSWORD: "Password123"
+      MONGODB_DBNAME: "xendit-notification"
+
+      JAEGER_AGENT_HOST: "localhost"
+      JAEGER_AGENT_PORT: "5775"
+
+      REDIS_HOST: "localhost:6379"
+      REDIS_PASSWORD: ""
+
+    commands:
+      install:
+        status: true
+        method: go install
+      run:
+        status: true
+    watcher:
+      extensions:
+        - go
+      paths:
+        - /
+      ignored_paths:
+        - .git
+        - .realize
+        - vendor
