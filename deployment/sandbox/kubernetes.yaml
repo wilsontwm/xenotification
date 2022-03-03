@@ -36,7 +36,7 @@ spec:
         - name: regsecret
       containers:
         - name: xenotification
-          image: registry-intl-vpc.ap-southeast-3.aliyuncs.com/revenuemonster/xenotification:sandbox-latest
+          image: registry-intl-vpc.ap-southeast-3.aliyuncs.com/xendit/xenotification:sandbox-latest
           imagePullPolicy: "Always"
           envFrom:
             - configMapRef:
