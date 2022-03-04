@@ -26,9 +26,10 @@ import (
 func (h Handler) SimulateNotification(c echo.Context) error {
 
 	var input struct {
-		MerchantID      string `json:"merchantId" validate:"required"`
-		NotificationURL string `json:"notificationURL" validate:"required"`
-		NotificationKey string `json:"notificationKey"`
+		MerchantID            string `json:"merchantId" validate:"required"`
+		NotificationURL       string `json:"notificationURL" validate:"required"`
+		NotificationKey       string `json:"notificationKey"`
+		AcceptableStatusCodes []int  `json:"acceptableStatusCodes"`
 	}
 
 	if err := c.Bind(&input); err != nil {
@@ -50,7 +51,7 @@ func (h Handler) SimulateNotification(c echo.Context) error {
 	notification.UpdatedAt = time.Now().UTC()
 
 	var resp interface{}
-	lastAttempt, err := h.triggerNotification(notification, []int{}, &resp)
+	lastAttempt, err := h.triggerNotification(notification, input.AcceptableStatusCodes, &resp)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, response.NewException(c, errcode.NotificationError, err))
 	}
