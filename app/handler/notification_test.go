@@ -28,7 +28,7 @@ func TestSimulateSuccessfulNotification(t *testing.T) {
 	}
 
 	input.MerchantID = "123456"
-	input.NotificationURL = "https://xendit.free.beeceptor.com/notify"
+	input.NotificationURL = fmt.Sprintf("%s/notify", TestClientServerURL)
 
 	data, _ := json.Marshal(input)
 
@@ -66,7 +66,7 @@ func TestSimulateFailedNotification(t *testing.T) {
 	}
 
 	input.MerchantID = "123456"
-	input.NotificationURL = "https://xendit.free.beeceptor.com/fail"
+	input.NotificationURL = fmt.Sprintf("%s/fail", TestClientServerURL)
 
 	data, _ := json.Marshal(input)
 
@@ -237,7 +237,7 @@ func TestResendNotification(t *testing.T) {
 
 	subInput.MerchantID = "123456"
 	subInput.Type = "FAIL"
-	subInput.NotificationURL = "https://xendit.free.beeceptor.com/fail"
+	subInput.NotificationURL = fmt.Sprintf("%s/fail", TestClientServerURL)
 
 	data, _ := json.Marshal(subInput)
 

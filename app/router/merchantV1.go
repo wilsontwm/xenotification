@@ -24,4 +24,6 @@ func merchantV1(e *echo.Echo, r *Router) {
 	notificationRoute.POST("/resend", h.ResendNotification)
 	notificationRoute.POST("/simulate", h.SimulateNotification)
 
+	mockRoute := v1.Group("/mock")
+	mockRoute.POST("/:action", h.SendMockRequest)
 }

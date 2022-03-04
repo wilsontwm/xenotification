@@ -116,12 +116,22 @@ func (r Repository) FindNotificationByID(id string, merchantID string) (*model.N
 		return nil, err
 	}
 
-	v := new(model.Notification)
+	tempResult := bson.M{}
 	if err := r.db.Collection(model.CollectionNotification).FindOne(
 		context.Background(),
 		bson.M{"_id": dataID, "merchantId": merchantID},
-	).Decode(v); err != nil {
+	).Decode(&tempResult); err != nil {
 		return nil, err
+	}
+
+	data, err := json.Marshal(tempResult)
+	if err != nil {
+		return nil, errors.New("entity marshal error")
+	}
+
+	v := new(model.Notification)
+	if err := json.Unmarshal(data, v); err != nil {
+		return nil, errors.New("entity unmarshal error")
 	}
 
 	return v, nil
@@ -129,12 +139,22 @@ func (r Repository) FindNotificationByID(id string, merchantID string) (*model.N
 
 // FindNotification :
 func (r Repository) FindNotification(typ string, requestID string) (*model.Notification, error) {
-	v := new(model.Notification)
+	tempResult := bson.M{}
 	if err := r.db.Collection(model.CollectionNotification).FindOne(
 		context.Background(),
 		bson.M{"type": typ, "requestId": requestID},
-	).Decode(v); err != nil {
+	).Decode(&tempResult); err != nil {
 		return nil, err
+	}
+
+	data, err := json.Marshal(tempResult)
+	if err != nil {
+		return nil, errors.New("entity marshal error")
+	}
+
+	v := new(model.Notification)
+	if err := json.Unmarshal(data, v); err != nil {
+		return nil, errors.New("entity unmarshal error")
 	}
 
 	return v, nil

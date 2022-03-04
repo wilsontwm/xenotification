@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,11 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/mongo"
+)
+
+const (
+	//TestClientServerURL = "https://xenotification.free.beeceptor.com"
+	TestClientServerURL = "http://localhost:7000/v1/mock"
 )
 
 func setupTest() Handler {
@@ -38,7 +44,7 @@ func TestUpsertSubscription(t *testing.T) {
 
 	input.MerchantID = "123456"
 	input.Type = "TEST"
-	input.NotificationURL = "https://xendit.free.beeceptor.com/notify"
+	input.NotificationURL = fmt.Sprintf("%s/notify", TestClientServerURL)
 
 	data, _ := json.Marshal(input)
 
