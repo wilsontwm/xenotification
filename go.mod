@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/caarlos0/env/v6 v6.9.1 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
+	github.com/go-redis/redis/v8 v8.11.4 // indirect
 	github.com/go-redsync/redsync v1.4.2 // indirect
 	github.com/go-resty/resty/v2 v2.7.0 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
@@ -24,7 +25,9 @@ require (
 	github.com/thoas/go-funk v0.9.1 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
+	github.com/ulule/limiter/v3 v3.9.0 // indirect
 	go.mongodb.org/mongo-driver v1.8.4 // indirect
+	go.opentelemetry.io/otel v0.13.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0 // indirect
 )

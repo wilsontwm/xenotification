@@ -12,6 +12,7 @@ const (
 	APIEndpointNotExist         = "API_ENDPOINT_NOT_EXIST"
 	NotificationError           = "NOTIFICATION_ERROR"
 	NotificationAttemptNotFound = "NOTIFICATION_ATTEMPT_NOT_EXIST"
+	TooManyRequests             = "TOO_MANY_REQUESTS"
 
 	// Validation error
 	OnlyFailedNotificationCanRetry = "ONLY_FAILED_NOTIFICATION_CAN_RETRY"
@@ -29,5 +30,6 @@ func init() {
 	Message.Store(APIEndpointNotExist, "API endpoint not exist")
 	Message.Store(NotificationError, "Notification error")
 	Message.Store(NotificationAttemptNotFound, "Notification attempt not exist")
+	Message.Store(TooManyRequests, "Too many requests, please try again later")
 	Message.Store(OnlyFailedNotificationCanRetry, "Only failed notification can be retried")
 }
