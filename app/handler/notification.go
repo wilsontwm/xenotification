@@ -79,22 +79,6 @@ func (h Handler) SendNotification(c echo.Context) error {
 		return c.JSON(http.StatusUnprocessableEntity, response.NewException(c, errcode.ValidationError, err))
 	}
 
-	// Lock based on the request ID first
-	notificationRequestLock := h.redsync.NewMutex(fmt.Sprintf("%s-%s", input.Type, input.RequestID), redsync.SetExpiry(120*time.Second))
-	if err := notificationRequestLock.Lock(); err != nil {
-		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
-	}
-	defer notificationRequestLock.Unlock()
-
-	// Check if the merchant has subscribe to the notification
-	subscription, err := h.repository.FindNotificationSubscription(model.SubscriptionKey{MerchantID: input.MerchantID, Type: input.Type})
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return c.JSON(http.StatusOK, response.Item{Item: nil})
-		}
-		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
-	}
-
 	type notificationWithAttempt struct {
 		notification *model.Notification
 		lastAttempt  *model.NotificationAttempt
@@ -110,6 +94,34 @@ func (h Handler) SendNotification(c echo.Context) error {
 			notification: notification,
 			lastAttempt:  lastAttempt,
 		}, nil
+	}
+
+	// Lock based on the request ID first
+	notificationRequestLock := h.redsync.NewMutex(fmt.Sprintf("%s-%s", input.Type, input.RequestID), redsync.SetExpiry(120*time.Second))
+	if err := notificationRequestLock.Lock(); err != nil {
+		// Try to get the notification if there is
+		notification, err := h.repository.FindNotification(input.Type, input.RequestID)
+		if notification != nil {
+			notify, err := getNotificationWithAttempt(notification)
+			if err != nil {
+				return c.JSON(http.StatusNotFound, response.NewException(c, errcode.NotificationAttemptNotFound, err))
+			}
+
+			return c.JSON(http.StatusOK, response.Item{
+				Item: transformer.ToNotificationWithAttempt(notify.notification, notify.lastAttempt),
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
+	}
+	defer notificationRequestLock.Unlock()
+
+	// Check if the merchant has subscribe to the notification
+	subscription, err := h.repository.FindNotificationSubscription(model.SubscriptionKey{MerchantID: input.MerchantID, Type: input.Type})
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return c.JSON(http.StatusOK, response.Item{Item: nil})
+		}
+		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
 	}
 
 	// Check if there is notification for the request id
@@ -230,6 +242,8 @@ func (h Handler) triggerNotification(notification *model.Notification, resp inte
 		"X-Xendit-Key": notification.NotificationKey,
 	}
 	statusCode, notificationErr := httprequest.HttpAPI(http.MethodPost, notification.NotificationURL, headers, notification.Payload, &resp)
+
+	// time.Sleep(60 * time.Second)
 
 	var lastAttempt *model.NotificationAttempt
 	if !notification.IsSimulation {
