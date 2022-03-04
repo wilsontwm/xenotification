@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	httprequest "xenotification/app/kit/httpRequest"
@@ -13,6 +15,7 @@ import (
 	"xenotification/app/types"
 
 	"github.com/go-redsync/redsync"
+	"github.com/ivpusic/grpool"
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -53,7 +56,7 @@ func (h Handler) SimulateNotification(c echo.Context) error {
 
 	return c.JSON(http.StatusOK,
 		map[string]interface{}{
-			"item":     transformer.ToNotification(notification, lastAttempt),
+			"item":     transformer.ToNotificationWithAttempt(notification, lastAttempt),
 			"response": resp,
 		})
 }
@@ -120,7 +123,7 @@ func (h Handler) SendNotification(c echo.Context) error {
 		}
 
 		return c.JSON(http.StatusOK, response.Item{
-			Item: transformer.ToNotification(notify.notification, notify.lastAttempt),
+			Item: transformer.ToNotificationWithAttempt(notify.notification, notify.lastAttempt),
 		})
 	}
 
@@ -149,7 +152,75 @@ func (h Handler) SendNotification(c echo.Context) error {
 
 	return c.JSON(http.StatusOK,
 		map[string]interface{}{
-			"item":     transformer.ToNotification(notification, lastAttempt),
+			"item":     transformer.ToNotificationWithAttempt(notification, lastAttempt),
+			"response": resp,
+		})
+}
+
+// ResendNotification :
+func (h Handler) ResendNotification(c echo.Context) error {
+
+	var input struct {
+		MerchantID      string `json:"merchantId" validate:"required"`
+		Type            string `json:"type" validate:"required"`
+		RequestID       string `json:"requestId" validate:"required"`
+		NotificationURL string `json:"notificationUrl" validate:"omitempty"`
+	}
+
+	if err := c.Bind(&input); err != nil {
+		return c.JSON(http.StatusBadRequest, response.NewException(c, errcode.InvalidRequest, err))
+	}
+
+	if err := c.Validate(&input); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, response.NewException(c, errcode.ValidationError, err))
+	}
+
+	// Lock based on the request ID first
+	notificationRequestLock := h.redsync.NewMutex(fmt.Sprintf("%s-%s", input.Type, input.RequestID), redsync.SetExpiry(30*time.Second))
+	if err := notificationRequestLock.Lock(); err != nil {
+		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
+	}
+	defer notificationRequestLock.Unlock()
+
+	notification, err := h.repository.FindNotification(input.Type, input.RequestID)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, response.NewException(c, errcode.NotFoundError, err))
+	} else if notification.MerchantID != input.MerchantID {
+		return c.JSON(http.StatusNotFound, response.NewException(c, errcode.NotFoundError, errors.New("Notification not found")))
+	} else if notification.Status != types.NotificationStatusFailed {
+		return c.JSON(http.StatusBadRequest, response.NewException(c, errcode.OnlyFailedNotificationCanRetry, errors.New("Only failed notification can be retried")))
+	}
+
+	// Check if it's a valid url
+	if input.NotificationURL != "" {
+		if _, err := url.ParseRequestURI(input.NotificationURL); err != nil {
+			return c.JSON(http.StatusUnprocessableEntity, response.NewException(c, errcode.ValidationError, err))
+		}
+		notification.NotificationURL = input.NotificationURL
+	}
+
+	notificationAttempt := new(model.NotificationAttempt)
+	notificationAttempt.ID = primitive.NewObjectID()
+	notificationAttempt.NotificationID = notification.ID
+	notificationAttempt.MerchantID = notification.MerchantID
+	notificationAttempt.AttemptNo = notification.AttemptNo + 1
+	notificationAttempt.Status = types.NotificationStatusPending
+	notificationAttempt.CreatedAt = time.Now().UTC()
+	notificationAttempt.UpdatedAt = time.Now().UTC()
+
+	if err := h.repository.UpsertNotificationAttempt(notificationAttempt); err != nil {
+		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
+	}
+
+	var resp interface{}
+	lastAttempt, err := h.triggerNotification(notification, &resp)
+	if err != nil {
+		return c.JSON(http.StatusBadGateway, response.NewException(c, errcode.NotificationError, err))
+	}
+
+	return c.JSON(http.StatusOK,
+		map[string]interface{}{
+			"item":     transformer.ToNotificationWithAttempt(notification, lastAttempt),
 			"response": resp,
 		})
 }
@@ -200,4 +271,43 @@ func (h Handler) triggerNotification(notification *model.Notification, resp inte
 	}
 
 	return lastAttempt, nil
+}
+
+// GetNotifications :
+func (h Handler) GetNotifications(c echo.Context) error {
+	var input struct {
+		MerchantID string `query:"merchantId"`
+		Cursor     string `query:"cursor"`
+		Limit      int64  `query:"limit"`
+	}
+
+	if err := c.Bind(&input); err != nil {
+		return c.JSON(http.StatusBadRequest, response.NewException(c, errcode.InvalidRequest, err))
+	}
+
+	notifications, cursor, err := h.repository.FindNotifications(input.MerchantID, input.Cursor, input.Limit)
+	if err != nil && err != mongo.ErrNoDocuments {
+		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
+	}
+
+	pool := grpool.NewPool(20, 20)
+	defer pool.Release()
+
+	pool.WaitCount(len(notifications))
+	formattedNotifications := make([]transformer.Notification, len(notifications))
+	for l, each := range notifications {
+		pool.JobQueue <- func(i int, not *model.Notification) func() {
+			return func() {
+				defer pool.JobDone()
+				formattedNotifications[i] = transformer.ToNotification(not)
+			}
+		}(l, each)
+	}
+	pool.WaitAll()
+
+	return c.JSON(http.StatusOK, response.Items{
+		Items:  formattedNotifications,
+		Count:  len(formattedNotifications),
+		Cursor: cursor,
+	})
 }

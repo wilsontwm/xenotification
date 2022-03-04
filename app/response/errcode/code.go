@@ -14,7 +14,7 @@ const (
 	NotificationAttemptNotFound = "NOTIFICATION_ATTEMPT_NOT_EXIST"
 
 	// Validation error
-
+	OnlyFailedNotificationCanRetry = "ONLY_FAILED_NOTIFICATION_CAN_RETRY"
 )
 
 // Message :
@@ -29,4 +29,5 @@ func init() {
 	Message.Store(APIEndpointNotExist, "API endpoint not exist")
 	Message.Store(NotificationError, "Notification error")
 	Message.Store(NotificationAttemptNotFound, "Notification attempt not exist")
+	Message.Store(OnlyFailedNotificationCanRetry, "Only failed notification can be retried")
 }

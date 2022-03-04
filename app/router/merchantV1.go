@@ -14,10 +14,14 @@ func merchantV1(e *echo.Echo, r *Router) {
 	cronRoute.POST("/resend-notification", h.CronSendNotification)
 
 	subscriptionRoute := v1.Group("/subscription")
+	subscriptionRoute.GET("s", h.GetSubscriptions)
 	subscriptionRoute.PUT("", h.UpsertSubscription)
 	subscriptionRoute.DELETE("", h.DeleteSubscription)
 
 	notificationRoute := v1.Group("/notify")
+	notificationRoute.GET("s", h.GetNotifications)
 	notificationRoute.POST("", h.SendNotification)
+	notificationRoute.POST("/resend", h.ResendNotification)
 	notificationRoute.POST("/simulate", h.SimulateNotification)
+
 }

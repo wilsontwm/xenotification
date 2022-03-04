@@ -16,7 +16,7 @@ type Notification struct {
 	Payload         interface{}              `bson:"payload" json:"payload"`
 	NotificationURL string                   `bson:"notificationUrl" json:"notificationUrl"`
 	NotificationKey string                   `bson:"notificationKey" json:"notificationKey"`
-	AttemptNo       uint                     `bson:"attemptNo" json:"atemptNo"`
+	AttemptNo       uint                     `bson:"attemptNo" json:"attemptNo"`
 	AttemptedAt     *time.Time               `bson:"attemptedAt" json:"attempedAt"`
 	Status          types.NotificationStatus `bson:"status" json:"status"`
 	IsSimulation    bool                     `bson:"-" json:"-"`

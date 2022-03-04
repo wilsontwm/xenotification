@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -19,12 +20,106 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
+// FindNotifications :
+func (r Repository) FindNotifications(merchantID string, cursor string, limit int64) ([]*model.Notification, string, error) {
+	notifications := make([]*model.Notification, 0)
+
+	ctx := context.Background()
+	query := bson.M{
+		"merchantId": merchantID,
+	}
+
+	sortQuery := bson.M{"updatedAt": -1}
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	currentSkip := int64(0)
+
+	if cursor != "" {
+		data, err := hex.DecodeString(cursor)
+		if err != nil {
+			return nil, "", err
+		}
+
+		currentSkip, err = strconv.ParseInt(string(data), 10, 64)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	nextCursor, err := r.db.Collection(model.CollectionNotification).Find(
+		ctx,
+		query,
+		options.Find().SetLimit(limit+1).SetSort(sortQuery).SetSkip(currentSkip),
+	)
+
+	if err != nil {
+		return nil, "", err
+	}
+	defer nextCursor.Close(ctx)
+
+	for nextCursor.Next(ctx) {
+		tempResult := bson.M{}
+
+		if err := nextCursor.Decode(&tempResult); err != nil {
+			return nil, "", errors.New("entity decode error")
+		}
+
+		data, err := json.Marshal(tempResult)
+		if err != nil {
+			return nil, "", errors.New("entity marshal error")
+		}
+
+		notification := new(model.Notification)
+		if err := json.Unmarshal(data, notification); err != nil {
+			return nil, "", errors.New("entity unmarshal error")
+		}
+
+		notifications = append(notifications, notification)
+
+		// obj, err := marshal(tempResult)
+		// if err != nil {
+		// 	log.Println(err, "error while marshalling")
+		// 	continue
+		// }
+		// var data model.DData
+		// err = json.Unmarshal(obj, &data)
+		// if err != nil {
+		// 	tenant.LogError(err, "error while marshalling")
+		// 	continue
+		// }
+		// notification := new(model.Notification)
+		// if err := nextCursor.Decode(notification); err != nil {
+		// 	return nil, "", errors.New("entity decode error")
+		// }
+		// log.Printf("notifi: %+v\n", notification)
+		// notifications = append(notifications, notification)
+	}
+
+	if err := nextCursor.Err(); err != nil {
+		return nil, "", err
+	}
+
+	if len(notifications) > int(limit) {
+		return notifications[:len(notifications)-1], hex.EncodeToString([]byte(fmt.Sprintf("%d", currentSkip+limit))), nil
+	}
+
+	return notifications, "", nil
+}
+
 // FindNotificationByID :
-func (r Repository) FindNotificationByID(id primitive.ObjectID) (*model.Notification, error) {
+func (r Repository) FindNotificationByID(id string, merchantID string) (*model.Notification, error) {
+	dataID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
 	v := new(model.Notification)
 	if err := r.db.Collection(model.CollectionNotification).FindOne(
 		context.Background(),
-		bson.M{"_id": id},
+		bson.M{"_id": dataID, "merchantId": merchantID},
 	).Decode(v); err != nil {
 		return nil, err
 	}
@@ -144,10 +239,22 @@ func (r Repository) FindRetryNotifications(cursor string) ([]*model.Notification
 	defer nextCursor.Close(ctx)
 
 	for nextCursor.Next(ctx) {
-		notification := new(model.Notification)
-		if err := nextCursor.Decode(notification); err != nil {
+		tempResult := bson.M{}
+
+		if err := nextCursor.Decode(&tempResult); err != nil {
 			return nil, "", errors.New("entity decode error")
 		}
+
+		data, err := json.Marshal(tempResult)
+		if err != nil {
+			return nil, "", errors.New("entity marshal error")
+		}
+
+		notification := new(model.Notification)
+		if err := json.Unmarshal(data, notification); err != nil {
+			return nil, "", errors.New("entity unmarshal error")
+		}
+
 		notifications = append(notifications, notification)
 	}
 

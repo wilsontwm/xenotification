@@ -11,8 +11,49 @@ import (
 	"xenotification/app/response/errcode"
 	"xenotification/app/response/transformer"
 
+	"github.com/ivpusic/grpool"
 	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/mongo"
 )
+
+// GetSubscriptions :
+func (h Handler) GetSubscriptions(c echo.Context) error {
+	var input struct {
+		MerchantID string `query:"merchantId"`
+		Cursor     string `query:"cursor"`
+		Limit      int64  `query:"limit"`
+	}
+
+	if err := c.Bind(&input); err != nil {
+		return c.JSON(http.StatusBadRequest, response.NewException(c, errcode.InvalidRequest, err))
+	}
+
+	subscriptions, cursor, err := h.repository.FindNotificationSubscriptions(input.MerchantID, input.Cursor, input.Limit)
+	if err != nil && err != mongo.ErrNoDocuments {
+		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
+	}
+
+	pool := grpool.NewPool(20, 20)
+	defer pool.Release()
+
+	pool.WaitCount(len(subscriptions))
+	formattedSubscriptions := make([]transformer.NotificationSubscription, len(subscriptions))
+	for l, each := range subscriptions {
+		pool.JobQueue <- func(i int, sub *model.NotificationSubscription) func() {
+			return func() {
+				defer pool.JobDone()
+				formattedSubscriptions[i] = transformer.ToNotificationSubscription(sub)
+			}
+		}(l, each)
+	}
+	pool.WaitAll()
+
+	return c.JSON(http.StatusOK, response.Items{
+		Items:  formattedSubscriptions,
+		Count:  len(formattedSubscriptions),
+		Cursor: cursor,
+	})
+}
 
 // UpsertSubscription :
 func (h Handler) UpsertSubscription(c echo.Context) error {
@@ -35,10 +76,6 @@ func (h Handler) UpsertSubscription(c echo.Context) error {
 	if _, err := url.ParseRequestURI(input.NotificationURL); err != nil {
 		return c.JSON(http.StatusUnprocessableEntity, response.NewException(c, errcode.ValidationError, err))
 	}
-
-	// if match, _ := regexp.Match(`^(http|https)://`, []byte(input.NotificationURL)); !match {
-	// 	input.NotificationURL = "https://" + input.NotificationURL
-	// }
 
 	subscription := new(model.NotificationSubscription)
 	subscription.ID.MerchantID = input.MerchantID
