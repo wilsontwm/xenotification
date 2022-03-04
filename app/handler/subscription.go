@@ -59,9 +59,10 @@ func (h Handler) GetSubscriptions(c echo.Context) error {
 func (h Handler) UpsertSubscription(c echo.Context) error {
 
 	var input struct {
-		MerchantID      string `json:"merchantId" validate:"required"`
-		Type            string `json:"type" validate:"required"`
-		NotificationURL string `json:"notificationUrl" validate:"required"`
+		MerchantID            string `json:"merchantId" validate:"required"`
+		Type                  string `json:"type" validate:"required"`
+		NotificationURL       string `json:"notificationUrl" validate:"required"`
+		AcceptableStatusCodes []int  `json:"acceptableStatusCodes"`
 	}
 
 	if err := c.Bind(&input); err != nil {
@@ -82,6 +83,7 @@ func (h Handler) UpsertSubscription(c echo.Context) error {
 	subscription.ID.Type = input.Type
 	subscription.NotificationURL = input.NotificationURL
 	subscription.NotificationKey = helper.RandomString(24)
+	subscription.AcceptableStatusCodes = input.AcceptableStatusCodes
 	subscription.CreatedAt = time.Now().UTC()
 	subscription.UpdatedAt = time.Now().UTC()
 

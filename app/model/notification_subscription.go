@@ -8,8 +8,9 @@ type SubscriptionKey struct {
 
 // NotificationSubscription :
 type NotificationSubscription struct {
-	ID              SubscriptionKey `bson:"_id" json:"_id"`
-	NotificationURL string          `bson:"notificationUrl" json:"notificationUrl"`
-	NotificationKey string          `bson:"notificationKey" json:"notificationKey"`
-	Model           `bson:",inline"`
+	ID                    SubscriptionKey `bson:"_id" json:"_id"`
+	NotificationURL       string          `bson:"notificationUrl" json:"notificationUrl"`
+	NotificationKey       string          `bson:"notificationKey" json:"notificationKey"`
+	AcceptableStatusCodes []int           `bson:"acceptableStatusCodes" json:"acceptableStatusCodes"`
+	Model                 `bson:",inline"`
 }

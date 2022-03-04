@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	"xenotification/app/kit/helper"
 	httprequest "xenotification/app/kit/httpRequest"
 	"xenotification/app/model"
 	"xenotification/app/response"
@@ -49,7 +50,7 @@ func (h Handler) SimulateNotification(c echo.Context) error {
 	notification.UpdatedAt = time.Now().UTC()
 
 	var resp interface{}
-	lastAttempt, err := h.triggerNotification(notification, &resp)
+	lastAttempt, err := h.triggerNotification(notification, []int{}, &resp)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, response.NewException(c, errcode.NotificationError, err))
 	}
@@ -157,7 +158,7 @@ func (h Handler) SendNotification(c echo.Context) error {
 	}
 
 	var resp interface{}
-	lastAttempt, err := h.triggerNotification(notification, &resp)
+	lastAttempt, err := h.triggerNotification(notification, subscription.AcceptableStatusCodes, &resp)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, response.NewException(c, errcode.NotificationError, err))
 	}
@@ -224,8 +225,13 @@ func (h Handler) ResendNotification(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, response.NewException(c, errcode.SystemError, err))
 	}
 
+	acceptableCodes := []int{}
+	if subscription, err := h.repository.FindNotificationSubscription(model.SubscriptionKey{MerchantID: notification.MerchantID, Type: notification.Type}); err == nil {
+		acceptableCodes = subscription.AcceptableStatusCodes
+	}
+
 	var resp interface{}
-	lastAttempt, err := h.triggerNotification(notification, &resp)
+	lastAttempt, err := h.triggerNotification(notification, acceptableCodes, &resp)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, response.NewException(c, errcode.NotificationError, err))
 	}
@@ -237,7 +243,7 @@ func (h Handler) ResendNotification(c echo.Context) error {
 		})
 }
 
-func (h Handler) triggerNotification(notification *model.Notification, resp interface{}) (*model.NotificationAttempt, error) {
+func (h Handler) triggerNotification(notification *model.Notification, acceptableStatusCodes []int, resp interface{}) (*model.NotificationAttempt, error) {
 	headers := map[string]string{
 		"X-Xendit-Key": notification.NotificationKey,
 	}
@@ -259,18 +265,24 @@ func (h Handler) triggerNotification(notification *model.Notification, resp inte
 	}
 
 	now := time.Now().UTC()
-	if statusCode >= 400 || statusCode < 200 {
+	isSuccess := false
+	if len(acceptableStatusCodes) > 0 {
+		isSuccess = helper.Contains(acceptableStatusCodes, statusCode)
+	} else {
+		isSuccess = statusCode < 400 && statusCode >= 200
+	}
+
+	if isSuccess {
+		lastAttempt.Status = types.NotificationStatusSuccess
+		lastAttempt.StatusCode = statusCode
+		lastAttempt.SentAt = &now
+	} else {
 		lastAttempt.Status = types.NotificationStatusFailed
 		lastAttempt.StatusCode = statusCode
 		if notificationErr != nil {
 			e := notificationErr.Error()
 			lastAttempt.Error = &e
 		}
-
-	} else {
-		lastAttempt.Status = types.NotificationStatusSuccess
-		lastAttempt.StatusCode = statusCode
-		lastAttempt.SentAt = &now
 	}
 
 	lastAttempt.UpdatedAt = time.Now().UTC()

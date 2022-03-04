@@ -66,8 +66,13 @@ func (h Handler) CronSendNotification(c echo.Context) error {
 					return
 				}
 
+				acceptableCodes := []int{}
+				if subscription, err := h.repository.FindNotificationSubscription(model.SubscriptionKey{MerchantID: notification.MerchantID, Type: notification.Type}); err == nil {
+					acceptableCodes = subscription.AcceptableStatusCodes
+				}
+
 				var resp interface{}
-				h.triggerNotification(notification, &resp)
+				h.triggerNotification(notification, acceptableCodes, &resp)
 			}
 		}(l, each)
 	}
