@@ -1,7 +1,6 @@
 package transformer
 
 import (
-	"log"
 	"time"
 
 	"xenotification/app/model"
@@ -55,7 +54,6 @@ func ToNotification(i *model.Notification) (o Notification) {
 	o.SentAt = i.AttemptedAt
 	o.CreatedAt = i.CreatedAt
 	o.UpdatedAt = i.UpdatedAt
-	log.Printf("No: %+v\n", i)
 	return
 }
 
